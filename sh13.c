@@ -21,22 +21,47 @@
 
 void parseLine ();
 void sysCall ( char **args);
+void openHistory( char **hist);
 
 #define BUFFER 128
 #define ARGS 128
+#define HISTORY 1000
+
+int histPtr;
+char *hist[HISTORY];
 
 int main()
 {
-	FILE *fp;
+	FILE *fp;				// open sh13rc
 	fp = fopen( "sh13rc" , "r" );
 	parseLine( fp );
 	fclose( fp );
+
+	openHistory( hist ); // open history file
 
 	while(1)
 	{
 		printf( "?:" );							// shell prompt
 		parseLine( stdin );
 	}
+}
+
+void openHistory( char **hist)
+{
+	FILE *fp;
+	fp = fopen( "sh13_history", "r");
+	char line[BUFFER];
+	int i = 0;
+	histPtr = 0;
+
+	while( ( fgets( line, BUFFER, fp)) != NULL)
+	{
+		hist[i] = strdup(line);
+		i++;
+		histPtr++;
+	}
+
+	fclose(fp);
 }
 
 void sysCall ( char **args )
@@ -50,6 +75,24 @@ void sysCall ( char **args )
 	}
 	else if( childpid == 0 )			// child code
 	{
+		if( (strcmp(args[0], "!")) == 0)
+		{
+				char * tmp[BUFFER];
+				tmp[0] = strtok( hist[histPtr], " =");
+				int j;
+				printf("in !!");
+				for( j = 0; j < BUFFER ; j++)
+				{
+					if( tmp[j] != NULL ) 
+					{
+            tmp[j+1] = strtok(NULL, " ");
+        	} else 
+					{
+            break;
+        	}
+				}
+				execvp( tmp[0], tmp);
+		}
 		if( (strcmp( args[0] , "PATH" )) == 0 )
 		{
 			setenv( args[0], args[1], 1 );
@@ -85,11 +128,17 @@ void parseLine ( FILE *stream)
 
 	while( c != EOF )							// loop while not end of line
 	{
-		while( c != ' ' && c != '\n' && c != '=' ) 
+		while( c != ' ' && c != '\n' && c != '=' && c != '!') 
 		{
 			buffer[i] = c;						// while c isn't a space or newline
 			i++;											// get the next char
 			c = getc( stream );
+		}
+
+		if( c == '!' )
+		{
+			buffer[i] = c;
+			i++;
 		}
 
 		buffer[i] = '\0';						// c must be a space or newline so append null char
@@ -97,6 +146,8 @@ void parseLine ( FILE *stream)
 		argc++;											// incriment number of args
 		memset( &buffer[0], 0 , sizeof(buffer) ); // reset buffer and counter for next arg
 		i = 0;
+	
+		if( c == '!') c = getc( stream);
 			
 		while( c == ' ' || c == '=' ) c = getc( stream ); // ignore extra spaces
 			
