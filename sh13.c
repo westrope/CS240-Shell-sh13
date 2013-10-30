@@ -27,10 +27,15 @@ void sysCall ( char **args);
 
 int main()
 {
+	FILE *fp;
+	fp = fopen( "sh13rc" , "r" );
+	parseLine( fp );
+	fclose( fp );
+
 	while(1)
 	{
 		printf( "?:" );							// shell prompt
-		parseLine();
+		parseLine( stdin );
 	}
 }
 
@@ -38,7 +43,6 @@ void sysCall ( char **args )
 {
 	pid_t childpid;							// child pid number
 	int status;
-
 	if( (childpid = fork() ) == -1 ) // fork
 	{
 		perror("Error in the fork");
@@ -46,6 +50,19 @@ void sysCall ( char **args )
 	}
 	else if( childpid == 0 )			// child code
 	{
+		if( (strcmp( args[0] , "PATH" )) == 0 )
+		{
+			setenv( args[0], args[1], 1 );
+			return;
+		}
+
+		if( ((strcmp( args[0] , "echo")) == 0) && ((strcmp( args[1], "$PATH")) == 0))
+		{
+			char *p = getenv( "PATH" );
+			printf( "%s\n", p );
+			return;
+		}
+
 		if( execvp( args[0], args ) < 0 ) // executes command
 		{
 			perror( "Command failed" );
@@ -58,21 +75,21 @@ void sysCall ( char **args )
 	}
 }
 
-void parseLine ()
+void parseLine ( FILE *stream)
 {
 	char *args[ARGS];							// hold arguments
 	char buffer[BUFFER];					// buffer
 	int argc = 0;									// argument counter
 	int i = 0;										// counter
-	char c = getc( stdin );			// get first char from stream
+	char c = getc( stream );			// get first char from stream
 
 	while( c != EOF )							// loop while not end of line
 	{
-		while( c != ' ' && c != '\n' ) 
+		while( c != ' ' && c != '\n' && c != '=' ) 
 		{
 			buffer[i] = c;						// while c isn't a space or newline
 			i++;											// get the next char
-			c = getc( stdin );
+			c = getc( stream );
 		}
 
 		buffer[i] = '\0';						// c must be a space or newline so append null char
@@ -81,13 +98,14 @@ void parseLine ()
 		memset( &buffer[0], 0 , sizeof(buffer) ); // reset buffer and counter for next arg
 		i = 0;
 			
-		while( c == ' ' ) c = getc( stdin ); // ignore extra spaces
+		while( c == ' ' || c == '=' ) c = getc( stream ); // ignore extra spaces
 			
 		if( c == '\n' )							// if newline then time to excute
 		{	
 			args[argc] = NULL;				// set last arg to NULL
 			sysCall( args );					// execute command
-
+			
+			argc = 0;
 			int j = 0;								// free memory
 			while( j <= (argc-1) )
 			{
@@ -96,7 +114,8 @@ void parseLine ()
 				j++;
 			}
 		}	
-
-		if( c == '\n' ) return;	// if newline then return from function
+		if( c == '\n' && stream == stdin) return;
+		while( c == '\n' || c == ' ') c = getc( stream );
+		if( c == EOF && stream != stdin ) return;	// if newline then return from function
 	}
 }
